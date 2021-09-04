@@ -1,23 +1,16 @@
 package com.hw.chaos;
 
-import com.hw.TestHelper;
+import com.hw.helper.TestHelper;
 import com.hw.helper.*;
 import com.jayway.jsonpath.JsonPath;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -30,8 +23,6 @@ import static com.hw.integration.profile.OrderTest.getOrderId;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@RunWith(SpringRunner.class)
-@SpringBootTest
 /**
  * create clean env before test
  * UPDATE product_detail SET order_storage = 1000;
@@ -39,51 +30,49 @@ import static org.junit.Assert.assertTrue;
  * UPDATE product_detail SET sales = NULL ;
  * DELETE FROM change_record ;
  */
+@Component
 public class ChaosTest {
     @Autowired
     UserAction action;
     @Autowired
     TestHelper helper;
-    UUID uuid;
-    @Rule
-    public TestWatcher watchman = new TestWatcher() {
-        @Override
-        protected void failed(Throwable e, Description description) {
-            action.saveResult(description, uuid);
-            log.error("test failed, method {}, uuid {}", description.getMethodName(), uuid);
-        }
-    };
 
-    @Before
-    public void setUp() {
+    UUID uuid;
+
+    private void setUp() {
         uuid = UUID.randomUUID();
         action.restTemplate.getRestTemplate().setInterceptors(Collections.singletonList(new OutgoingReqInterceptor(uuid)));
     }
 
-
-    @Test
-    public void long_running_job_concurrent_create_order_randomly_pay_randomly_replace_randomly_after_sometime_validate_order_storage_actually_storage_with_sales() {
-        int numOfConcurrent = 10;
-
+    /**
+     * concurrent_create_order
+     * randomly_pay
+     * randomly_replace
+     * after some time validate order storage actually storage
+     */
+    public void testCase1() {
+        int numOfConcurrent = 1;
+        setUp();
         Runnable runnable = new Runnable() {
             @SneakyThrows
             @Override
             public void run() {
                 Thread.sleep(5000);//give some delay
                 // randomly pick test user
-                log.info("thread start ");
+                log.info("thread start");
                 ArrayList<Integer> integers4 = new ArrayList<>();
                 integers4.add(200);
                 integers4.add(500);
-                ResourceOwner resourceOwner1 = action.testUser.get(new Random().nextInt(5));
-                String defaultUserToken = action.getJwtPassword(resourceOwner1.getEmail(), resourceOwner1.getPassword()).getBody().getValue();
+                ResourceOwner user = action.testUser.get(new Random().nextInt(5));
+                String defaultUserToken = action.getJwtPassword(user.getEmail(), user.getPassword()).getBody().getValue();
                 log.info("user token " + defaultUserToken);
-                OrderDetail orderDetailForUser = action.createOrderDetailForUser(defaultUserToken);
+                OrderDetail orderDetail1 = action.createOrderDetailForUser(defaultUserToken);
                 log.info("draft order created");
                 String url3 = helper.getUserProfileUrl("/orders/user");
-                ResponseEntity<String> exchange = action.restTemplate.exchange(url3, HttpMethod.POST, action.getHttpRequestAsString(defaultUserToken, orderDetailForUser), String.class);
+                ResponseEntity<String> exchange = action.restTemplate.exchange(url3, HttpMethod.POST, action.getHttpRequestAsString(defaultUserToken, orderDetail1), String.class);
                 log.info("create status code " + exchange.getStatusCode());
                 Assert.assertTrue("create success or concurrent-failure", integers4.contains(exchange.getStatusCode().value()));
+                Thread.sleep(10000);//wait for order creation
                 int i = new Random().nextInt(20);
                 if (i >= 0 && i < 5) {
                     if (exchange.getStatusCode().is2xxSuccessful()) {
@@ -152,43 +141,9 @@ public class ChaosTest {
             runnables.add(runnable);
         });
         try {
-            assertConcurrent("", runnables, 300000);
+            UserAction.assertConcurrent("", runnables, 300000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-    }
-
-    public static void assertConcurrent(final String message, final List<? extends Runnable> runnables, final int maxTimeoutSeconds) throws InterruptedException {
-        final int numThreads = runnables.size();
-        final List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<Throwable>());
-        final ExecutorService threadPool = Executors.newFixedThreadPool(numThreads);
-        try {
-            final CountDownLatch allExecutorThreadsReady = new CountDownLatch(numThreads);
-            final CountDownLatch afterInitBlocker = new CountDownLatch(1);
-            final CountDownLatch allDone = new CountDownLatch(numThreads);
-            for (final Runnable submittedTestRunnable : runnables) {
-                threadPool.submit(new Runnable() {
-                    public void run() {
-                        allExecutorThreadsReady.countDown();
-                        try {
-                            afterInitBlocker.await();
-                            submittedTestRunnable.run();
-                        } catch (final Throwable e) {
-                            exceptions.add(e);
-                        } finally {
-                            allDone.countDown();
-                        }
-                    }
-                });
-            }
-            // wait until all threads are ready
-            assertTrue("Timeout initializing threads! Perform long lasting initializations before passing runnables to assertConcurrent", allExecutorThreadsReady.await(runnables.size() * 10, TimeUnit.MILLISECONDS));
-            // start all test runners
-            afterInitBlocker.countDown();
-            assertTrue(message + " timeout! More than" + maxTimeoutSeconds + "seconds", allDone.await(maxTimeoutSeconds, TimeUnit.SECONDS));
-        } finally {
-            threadPool.shutdownNow();
-        }
-        assertTrue(message + "failed with exception(s)" + exceptions, exceptions.isEmpty());
     }
 }

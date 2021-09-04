@@ -1,8 +1,8 @@
 package com.hw;
 
-import com.hw.entity.TestResult;
-import com.hw.helper.UserAction;
 import com.hw.chaos.ChaosTest;
+import com.hw.helper.UserAction;
+import com.hw.integration.IntegrationTestSuite;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.junit.runner.JUnitCore;
@@ -14,50 +14,29 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 @Slf4j
-//@SpringBootApplication
-//@EnableScheduling
+@SpringBootApplication
+@EnableScheduling
 public class ChaosTestRunner {
 
     @Autowired
     UserAction userAction;
-
-    @PostConstruct
-    public void setUp() {
-        userAction.initTestUser();
-    }
+    @Autowired
+    ChaosTest chaosTest;
 
     public static void main(String[] args) {
         SpringApplication.run(ChaosTestRunner.class, args);
     }
 
+
     @Scheduled(fixedRate = 200 * 1000)
-    public void runTest() {
-        log.info("long run test started");
-        TestResult testResult = new TestResult();
-        testResult.setStatus("just started");
-        StringBuilder stringBuilder = new StringBuilder();
-        Result result = JUnitCore.runClasses(ChaosTest.class);
-        for (Failure failure : result.getFailures()) {
-            log.error(failure.toString());
-            stringBuilder.append(failure.toString());
-        }
-        log.info("Long run tests {}-executed {}-ignored {}-failed elapse-{}ms", result.getRunCount(), result.getIgnoreCount(), result.getFailureCount(), result.getRunTime());
-        testResult.setTestExecuted(result.getRunCount());
-        testResult.setIgnored(result.getIgnoreCount());
-        testResult.setFailed(result.getFailureCount());
-        testResult.setElapse(result.getRunTime());
-        if (result.wasSuccessful()) {
-            log.info("Long run tests all passed");
-            testResult.setStatus("success");
-        } else {
-            testResult.setFailedMsg(stringBuilder.toString());
-            testResult.setStatus("failed");
-            log.error("Long run tests failed, check log");
-        }
+    public void runChaosTest() {
+        log.info("Chaos test start");
+        userAction.initTestUser();
+        chaosTest.testCase1();
+        log.info("Chaos test end");
     }
 
     @PreDestroy

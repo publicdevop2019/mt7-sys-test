@@ -23,7 +23,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
-import static com.hw.chaos.ChaosTest.assertConcurrent;
+import static com.hw.helper.UserAction.assertConcurrent;
+
 
 @RunWith(SpringRunner.class)
 @Slf4j

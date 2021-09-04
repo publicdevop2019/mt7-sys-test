@@ -3,7 +3,7 @@ package com.hw.integration.profile;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hw.TestHelper;
+import com.hw.helper.TestHelper;
 import com.hw.helper.Address;
 import com.hw.helper.OutgoingReqInterceptor;
 import com.hw.helper.SumTotalAddress;

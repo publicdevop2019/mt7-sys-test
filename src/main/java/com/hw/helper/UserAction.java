@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hw.TestHelper;
 import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -77,7 +76,7 @@ public class UserAction {
     public ObjectMapper mapper = new ObjectMapper().configure(MapperFeature.USE_ANNOTATIONS, false).setSerializationInclusion(JsonInclude.Include.NON_NULL);
     public TestRestTemplate restTemplate = new TestRestTemplate();
     //        public static String proxyUrl = "http://api.manytreetechnology.com:" + 8111;
-    public static String proxyUrl = "http://localhost:" + 8111;
+    public static String proxyUrl = "http://192.168.2.16:" + 8111;
     public static final String URL = UserAction.proxyUrl + SVC_NAME_AUTH + "/oauth/token";
     public static String PROXY_URL_TOKEN = proxyUrl + SVC_NAME_AUTH + "/oauth/token";
     public static final String URL2 = UserAction.proxyUrl + UserAction.SVC_NAME_AUTH + CLIENTS + ACCESS_ROLE_ROOT;
@@ -136,6 +135,7 @@ public class UserAction {
 
     public void initTestUser() {
         if (testUser.size() == 0) {
+        log.debug("start of creating test users");
             ResourceOwner resourceOwner1 = randomRegisterAnUser();
             ResourceOwner resourceOwner2 = randomRegisterAnUser();
             ResourceOwner resourceOwner3 = randomRegisterAnUser();
@@ -146,6 +146,10 @@ public class UserAction {
             testUser.add(resourceOwner3);
             testUser.add(resourceOwner4);
             testUser.add(resourceOwner5);
+        log.debug("end of creating test users");
+        }else{
+        log.debug("test users already exist");
+
         }
     }
 
@@ -356,25 +360,25 @@ public class UserAction {
     }
 
 
-    public OrderDetail createOrderDetailForUser(String defaultUserToken) {
-        ResponseEntity<ProductCustomerSummaryPaginatedRepresentation> randomProducts = readProductsByQuery();
-        List<ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation> data = randomProducts.getBody().getData();
+    public OrderDetail createOrderDetailForUser(String authToken) {
+        ResponseEntity<ProductCustomerSummaryPaginatedRepresentation> productsByQuery = readProductsByQuery();
+        List<ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation> products = productsByQuery.getBody().getData();
 
-        ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation productSimple = data.get(new Random().nextInt(data.size()));
-        String url = helper.getMallUrl("/products/public/" + productSimple.getId());
-        ResponseEntity<ProductDetailCustomRepresentation> exchange = restTemplate.exchange(url, HttpMethod.GET, null, ProductDetailCustomRepresentation.class);
-        while (exchange.getBody().getSkus().stream().anyMatch(e -> e.getStorage().equals(0))) {
-            ResponseEntity<ProductCustomerSummaryPaginatedRepresentation> randomProducts2 = readProductsByQuery();
+        ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation selectedProduct = products.get(new Random().nextInt(products.size()));
+        String productInfoUrl = helper.getMallUrl("/products/public/" + selectedProduct.getId());
+        ResponseEntity<ProductDetailCustomRepresentation> productDetail = restTemplate.exchange(productInfoUrl, HttpMethod.GET, null, ProductDetailCustomRepresentation.class);
+        while (productDetail.getBody().getSkus().stream().anyMatch(e -> e.getStorage().equals(0))) {
+            ResponseEntity<ProductCustomerSummaryPaginatedRepresentation> nextProductsByQuery = readProductsByQuery();
 
-            ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation productSimple2 = data.get(new Random().nextInt(randomProducts2.getBody().getData().size()));
-            String url3 = helper.getMallUrl("/products/public/" + productSimple2.getId());
-            exchange = restTemplate.exchange(url3, HttpMethod.GET, null, ProductDetailCustomRepresentation.class);
+            ProductCustomerSummaryPaginatedRepresentation.ProductSearchRepresentation nextSelectedProduct = products.get(new Random().nextInt(nextProductsByQuery.getBody().getData().size()));
+            String url3 = helper.getMallUrl("/products/public/" + nextSelectedProduct.getId());
+            productDetail = restTemplate.exchange(url3, HttpMethod.GET, null, ProductDetailCustomRepresentation.class);
         }
-        SnapshotProduct snapshotProduct = selectProduct(exchange.getBody());
-        String url2 = helper.getUserProfileUrl("/cart/user");
-        ResponseEntity<String> exchange1 = restTemplate.exchange(url2, HttpMethod.POST, getHttpRequestAsString(defaultUserToken, snapshotProduct), String.class);
+        SnapshotProduct cartItem = selectProduct(productDetail.getBody());
+        String cartUrl = helper.getUserProfileUrl("/cart/user");
+        ResponseEntity<String> addCartResponse = restTemplate.exchange(cartUrl, HttpMethod.POST, getHttpRequestAsString(authToken, cartItem), String.class);
 
-        ResponseEntity<SumTotalSnapshotProduct> exchange5 = restTemplate.exchange(url2, HttpMethod.GET, getHttpRequest(defaultUserToken), SumTotalSnapshotProduct.class);
+        ResponseEntity<SumTotalSnapshotProduct> exchange5 = restTemplate.exchange(cartUrl, HttpMethod.GET, getHttpRequest(authToken), SumTotalSnapshotProduct.class);
 
         OrderDetail orderDetail = new OrderDetail();
         SnapshotAddress snapshotAddress = new SnapshotAddress();
@@ -436,6 +440,7 @@ public class UserAction {
         snapshotProduct.setName(productDetail.getName());
         snapshotProduct.setProductId(productDetail.getId().toString());
         snapshotProduct.setSelectedOptions(productDetail.getSelectedOptions());
+        snapshotProduct.setImageUrlSmall(productDetail.getImageUrlSmall());
 
         BigDecimal calc = new BigDecimal(0);
         for (String priceVar : priceVarCollection) {

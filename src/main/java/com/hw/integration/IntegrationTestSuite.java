@@ -1,4 +1,4 @@
-package com.hw;
+package com.hw.integration;
 
 import com.hw.integration.identityaccess.proxy.CORSTest;
 import com.hw.integration.identityaccess.oauth2.*;

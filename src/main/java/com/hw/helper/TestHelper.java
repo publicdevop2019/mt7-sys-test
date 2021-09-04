@@ -1,15 +1,16 @@
-package com.hw;
+package com.hw.helper;
 
 import com.netflix.discovery.EurekaClient;
+import com.netflix.discovery.shared.Application;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
-@Getter
+@Slf4j
 public class TestHelper {
-    @Getter(AccessLevel.NONE)
     @Autowired
     private EurekaClient eurekaClient;
 
@@ -20,7 +21,7 @@ public class TestHelper {
 
     public String getMallUrl(String path) {
         String normalized = removeLeadingSlash(path);
-        return eurekaClient.getApplication("PRODUCT").getInstances().get(0).getHomePageUrl() + normalized;
+        return eurekaClient.getApplication("MALL").getInstances().get(0).getHomePageUrl() + normalized;
     }
 
     public String getUserProfileUrl(String path) {
