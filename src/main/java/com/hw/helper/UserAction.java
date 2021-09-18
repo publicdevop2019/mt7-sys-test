@@ -141,11 +141,21 @@ public class UserAction {
             ResourceOwner resourceOwner3 = randomRegisterAnUser();
             ResourceOwner resourceOwner4 = randomRegisterAnUser();
             ResourceOwner resourceOwner5 = randomRegisterAnUser();
+            ResourceOwner resourceOwner6 = randomRegisterAnUser();
+            ResourceOwner resourceOwner7 = randomRegisterAnUser();
+            ResourceOwner resourceOwner8 = randomRegisterAnUser();
+            ResourceOwner resourceOwner9 = randomRegisterAnUser();
+            ResourceOwner resourceOwner10 = randomRegisterAnUser();
             testUser.add(resourceOwner1);
             testUser.add(resourceOwner2);
             testUser.add(resourceOwner3);
             testUser.add(resourceOwner4);
             testUser.add(resourceOwner5);
+            testUser.add(resourceOwner6);
+            testUser.add(resourceOwner7);
+            testUser.add(resourceOwner8);
+            testUser.add(resourceOwner9);
+            testUser.add(resourceOwner10);
         log.debug("end of creating test users");
         }else{
         log.debug("test users already exist");

@@ -31,7 +31,7 @@ public class ChaosTestRunner {
     }
 
 
-    @Scheduled(fixedRate = 200 * 1000)
+    @Scheduled(fixedRate = 20 * 1000)
     public void runChaosTest() {
         log.info("Chaos test start");
         userAction.initTestUser();

@@ -1,6 +1,5 @@
 package com.hw.chaos;
 
-import com.hw.helper.TestHelper;
 import com.hw.helper.*;
 import com.jayway.jsonpath.JsonPath;
 import lombok.SneakyThrows;
@@ -13,14 +12,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static com.hw.integration.profile.OrderTest.getOrderId;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 /**
@@ -51,7 +45,7 @@ public class ChaosTest {
      * after some time validate order storage actually storage
      */
     public void testCase1() {
-        int numOfConcurrent = 1;
+        int numOfConcurrent = 10;
         setUp();
         Runnable runnable = new Runnable() {
             @SneakyThrows
@@ -63,7 +57,7 @@ public class ChaosTest {
                 ArrayList<Integer> integers4 = new ArrayList<>();
                 integers4.add(200);
                 integers4.add(500);
-                ResourceOwner user = action.testUser.get(new Random().nextInt(5));
+                ResourceOwner user = action.testUser.get(new Random().nextInt(action.testUser.size()));
                 String defaultUserToken = action.getJwtPassword(user.getEmail(), user.getPassword()).getBody().getValue();
                 log.info("user token " + defaultUserToken);
                 OrderDetail orderDetail1 = action.createOrderDetailForUser(defaultUserToken);
@@ -73,20 +67,37 @@ public class ChaosTest {
                 log.info("create status code " + exchange.getStatusCode());
                 Assert.assertTrue("create success or concurrent-failure", integers4.contains(exchange.getStatusCode().value()));
                 Thread.sleep(10000);//wait for order creation
-                int i = new Random().nextInt(20);
-                if (i >= 0 && i < 5) {
+                int randomValue = new Random().nextInt(20);
+                String orderId = getOrderId(exchange.getHeaders().getLocation().toString());
+                if (randomValue < 10) {
+
                     if (exchange.getStatusCode().is2xxSuccessful()) {
                         //randomly pay
-                        log.info("randomly pay");
-                        Assert.assertNotNull(exchange.getHeaders().getLocation().toString());
-                        String orderId = getOrderId(exchange.getHeaders().getLocation().toString());
-                        String url4 = helper.getUserProfileUrl("/orders/user/" + orderId + "/confirm");
-                        ResponseEntity<String> exchange7 = action.restTemplate.exchange(url4, HttpMethod.PUT, action.getHttpRequest(defaultUserToken), String.class);
-                        Assert.assertEquals(HttpStatus.OK, exchange7.getStatusCode());
-                        Boolean read = JsonPath.read(exchange7.getBody(), "$.paymentStatus");
-                        Assert.assertEquals(true, read);
+                        if (randomValue < 5) {
+                            log.info("randomly pay");
+                            Assert.assertNotNull(exchange.getHeaders().getLocation().toString());
+                            String url4 = helper.getUserProfileUrl("/orders/user/" + orderId + "/confirm");
+                            ResponseEntity<String> exchange7 = action.restTemplate.exchange(url4, HttpMethod.PUT, action.getHttpRequest(defaultUserToken), String.class);
+                            Assert.assertEquals(HttpStatus.OK, exchange7.getStatusCode());
+                            Boolean read = JsonPath.read(exchange7.getBody(), "$.paymentStatus");
+                            Assert.assertEquals(true, read);
+
+                        } else {
+                            log.info("randomly update address");
+                            String url5 = helper.getUserProfileUrl("/orders/user/" + orderDetail1.getId());
+                            Address address = new Address();
+                            address.setCountry("testCountry");
+                            address.setProvince("testProvince");
+                            address.setCity("testCity");
+                            address.setLine1("testLine1");
+                            address.setLine2("testLine2");
+                            address.setPostalCode("testPostalCode");
+                            address.setPhoneNumber("testPhoneNumber");
+                            address.setFullName("testFullName");
+                            ResponseEntity<String> exchange5 = action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(defaultUserToken, address), String.class);
+                        }
                     }
-                } else if (i >= 5 && i < 10) {
+                } else if (randomValue < 15) {
                     log.info("randomly replace");
                     // randomly replace order, regardless it's state
                     String url4 = helper.getUserProfileUrl("/orders/user");
@@ -108,7 +119,7 @@ public class ChaosTest {
                             integers2.add(400);
                             integers2.add(500);
                             Assert.assertTrue("replace success or done by other thread", integers2.contains(exchange5.getStatusCode().value()));
-                            if (i <= 7 && exchange5.getStatusCode().value() == 200) {
+                            if (randomValue <= 13 && exchange5.getStatusCode().value() == 200) {
                                 log.info("after replace, directly pay");
                                 // after replace, directly pay
                                 String url6 = helper.getUserProfileUrl("/orders/user/" + orderDetail.getId() + "/confirm");
@@ -130,9 +141,14 @@ public class ChaosTest {
                         }
                     }
                     log.info("no pending order");
-                } else if (i >= 10) {
-                    // randomly not pay
-                    log.info("randomly not pay");
+                } else {
+                    if (randomValue > 18) {
+                        log.info("randomly not pay");
+                    } else {
+                        log.info("randomly delete");
+                        String url6 = helper.getUserProfileUrl("/orders/user/" + orderId);
+                        action.restTemplate.exchange(url6, HttpMethod.DELETE, action.getHttpRequest(defaultUserToken), String.class);
+                    }
                 }
             }
         };
