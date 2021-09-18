@@ -11,10 +11,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.IntStream;
-
-import static com.hw.integration.profile.OrderTest.getOrderId;
 
 @Slf4j
 /**
@@ -45,7 +46,7 @@ public class ChaosTest {
      * after some time validate order storage actually storage
      */
     public void testCase1() {
-        int numOfConcurrent = 10;
+        int numOfConcurrent = 5;
         setUp();
         Runnable runnable = new Runnable() {
             @SneakyThrows
@@ -54,100 +55,52 @@ public class ChaosTest {
                 Thread.sleep(5000);//give some delay
                 // randomly pick test user
                 log.info("thread start");
-                ArrayList<Integer> integers4 = new ArrayList<>();
-                integers4.add(200);
-                integers4.add(500);
                 ResourceOwner user = action.testUser.get(new Random().nextInt(action.testUser.size()));
-                String defaultUserToken = action.getJwtPassword(user.getEmail(), user.getPassword()).getBody().getValue();
-                log.info("user token " + defaultUserToken);
-                OrderDetail orderDetail1 = action.createOrderDetailForUser(defaultUserToken);
-                log.info("draft order created");
+                String userAuthToken = action.getJwtPassword(user.getEmail(), user.getPassword()).getBody().getValue();
+                OrderDetail orderDetail1 = action.createOrderDetailForUser(userAuthToken);
+                log.info("draft order generated");
                 String url3 = helper.getUserProfileUrl("/orders/user");
-                ResponseEntity<String> exchange = action.restTemplate.exchange(url3, HttpMethod.POST, action.getHttpRequestAsString(defaultUserToken, orderDetail1), String.class);
-                log.info("create status code " + exchange.getStatusCode());
-                Assert.assertTrue("create success or concurrent-failure", integers4.contains(exchange.getStatusCode().value()));
-                Thread.sleep(10000);//wait for order creation
-                int randomValue = new Random().nextInt(20);
-                String orderId = getOrderId(exchange.getHeaders().getLocation().toString());
-                if (randomValue < 10) {
-
-                    if (exchange.getStatusCode().is2xxSuccessful()) {
-                        //randomly pay
-                        if (randomValue < 5) {
-                            log.info("randomly pay");
-                            Assert.assertNotNull(exchange.getHeaders().getLocation().toString());
-                            String url4 = helper.getUserProfileUrl("/orders/user/" + orderId + "/confirm");
-                            ResponseEntity<String> exchange7 = action.restTemplate.exchange(url4, HttpMethod.PUT, action.getHttpRequest(defaultUserToken), String.class);
-                            Assert.assertEquals(HttpStatus.OK, exchange7.getStatusCode());
-                            Boolean read = JsonPath.read(exchange7.getBody(), "$.paymentStatus");
-                            Assert.assertEquals(true, read);
-
-                        } else {
-                            log.info("randomly update address");
-                            String url5 = helper.getUserProfileUrl("/orders/user/" + orderDetail1.getId());
-                            Address address = new Address();
-                            address.setCountry("testCountry");
-                            address.setProvince("testProvince");
-                            address.setCity("testCity");
-                            address.setLine1("testLine1");
-                            address.setLine2("testLine2");
-                            address.setPostalCode("testPostalCode");
-                            address.setPhoneNumber("testPhoneNumber");
-                            address.setFullName("testFullName");
-                            ResponseEntity<String> exchange5 = action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(defaultUserToken, address), String.class);
-                        }
-                    }
-                } else if (randomValue < 15) {
-                    log.info("randomly replace");
-                    // randomly replace order, regardless it's state
-                    String url4 = helper.getUserProfileUrl("/orders/user");
-                    ResponseEntity<SumTotalOrder> exchange3 = action.restTemplate.exchange(url4, HttpMethod.GET, action.getHttpRequest(defaultUserToken), SumTotalOrder.class);
-                    List<OrderDetail> body = exchange3.getBody().getData();
-                    if (body != null) {
-                        int size = body.size();
-                        if (size > 0) {
-                            OrderDetail orderDetail = body.get(new Random().nextInt(size));
-                            String url8 = helper.getUserProfileUrl("/orders/user/" + orderDetail.getId());
-                            ResponseEntity<OrderDetail> exchange8 = action.restTemplate.exchange(url8, HttpMethod.GET, action.getHttpRequest(defaultUserToken), OrderDetail.class);
-                            Assert.assertEquals(HttpStatus.OK, exchange8.getStatusCode());
-                            OrderDetail body1 = exchange8.getBody();
-
-                            String url5 = helper.getUserProfileUrl("/orders/user/" + orderDetail.getId() + "/reserve");
-                            ResponseEntity<String> exchange5 = action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(defaultUserToken, body1), String.class);
-                            ArrayList<Integer> integers2 = new ArrayList<>();
-                            integers2.add(200);
-                            integers2.add(400);
-                            integers2.add(500);
-                            Assert.assertTrue("replace success or done by other thread", integers2.contains(exchange5.getStatusCode().value()));
-                            if (randomValue <= 13 && exchange5.getStatusCode().value() == 200) {
-                                log.info("after replace, directly pay");
-                                // after replace, directly pay
-                                String url6 = helper.getUserProfileUrl("/orders/user/" + orderDetail.getId() + "/confirm");
-                                ResponseEntity<String> exchange7 = action.restTemplate.exchange(url6, HttpMethod.PUT, action.getHttpRequest(defaultUserToken), String.class);
-                                log.info("exchange7.getBody() {}", exchange7.getBody());
-                                ArrayList<Integer> integers = new ArrayList<>();
-                                integers.add(200);
-                                integers.add(400);
-                                integers.add(500);
-                                Assert.assertTrue("order pay success or already paid", integers.contains(exchange7.getStatusCode().value()));
-                                Boolean read = JsonPath.read(exchange7.getBody(), "$.paymentStatus");
-                                Assert.assertEquals(true, read);
-                            } else {
-                                log.info("after replace, not pay");
-                                // after replace, not pay
-
-                            }
-
-                        }
-                    }
-                    log.info("no pending order");
-                } else {
-                    if (randomValue > 18) {
-                        log.info("randomly not pay");
-                    } else {
+                action.restTemplate.exchange(url3, HttpMethod.POST, action.getHttpRequestAsString(userAuthToken, orderDetail1), String.class);
+                Thread.sleep(15*1000);//wait for order creation
+                String getAllOrderUrl = helper.getUserProfileUrl("/orders/user");
+                ResponseEntity<SumTotalOrder> allOrders = action.restTemplate.exchange(getAllOrderUrl, HttpMethod.GET, action.getHttpRequest(userAuthToken), SumTotalOrder.class);
+                if (allOrders.getBody() != null && allOrders.getBody().getData().size() > 0) {
+                    int randomValue = new Random().nextInt(30);
+                    OrderDetail randomOrder = allOrders.getBody().getData().get(new Random().nextInt(allOrders.getBody().getData().size()));
+                    if (randomValue < 5) {
+                        log.info("randomly pay");
+                        String payOrderUrl = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId() + "/confirm");
+                        action.restTemplate.exchange(payOrderUrl, HttpMethod.PUT, action.getHttpRequest(userAuthToken), String.class);
+                    } else if (randomValue < 10) {
+                        log.info("randomly reserve");
+                        String url5 = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId() + "/reserve");
+                        action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(userAuthToken, null), String.class);
+                    } else if (randomValue < 15) {
+                        log.info("reserve then directly pay");
+                        String url5 = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId() + "/reserve");
+                        action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(userAuthToken, null), String.class);
+                        // after replace, directly pay
+                        String payOrderUrl = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId() + "/confirm");
+                        action.restTemplate.exchange(payOrderUrl, HttpMethod.PUT, action.getHttpRequest(userAuthToken), String.class);
+                    } else if (randomValue < 20) {
                         log.info("randomly delete");
-                        String url6 = helper.getUserProfileUrl("/orders/user/" + orderId);
-                        action.restTemplate.exchange(url6, HttpMethod.DELETE, action.getHttpRequest(defaultUserToken), String.class);
+                        String url6 = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId());
+                        action.restTemplate.exchange(url6, HttpMethod.DELETE, action.getHttpRequest(userAuthToken), String.class);
+                    } else if (randomValue < 25) {
+                        log.info("randomly update address");
+                        String url5 = helper.getUserProfileUrl("/orders/user/" + randomOrder.getId());
+                        Address address = new Address();
+                        address.setCountry("testCountry");
+                        address.setProvince("testProvince");
+                        address.setCity("testCity");
+                        address.setLine1("testLine1");
+                        address.setLine2("testLine2");
+                        address.setPostalCode("testPostalCode");
+                        address.setPhoneNumber("testPhoneNumber");
+                        address.setFullName("testFullName");
+                        action.restTemplate.exchange(url5, HttpMethod.PUT, action.getHttpRequestAsString(userAuthToken, address), String.class);
+                    } else {
+                        log.info("do nothing");
                     }
                 }
             }

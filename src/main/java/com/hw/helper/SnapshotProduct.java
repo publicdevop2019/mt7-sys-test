@@ -21,6 +21,7 @@ public class SnapshotProduct {
     private String skuId;
     private String cartId;
     private Integer amount;
+    private Integer version;
 
     private Set<String> attributesSales;
 

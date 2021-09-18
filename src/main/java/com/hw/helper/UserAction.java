@@ -396,6 +396,7 @@ public class UserAction {
         orderDetail.setAddress(snapshotAddress);
         exchange5.getBody().getData().forEach(e -> {
             e.setCartId(e.getId());
+
         });
         orderDetail.setProductList(exchange5.getBody().getData());
         orderDetail.setPaymentType(PaymentType.WECHAT_PAY);
